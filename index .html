@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Voice Cart — Voice Command Shopping Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1F2420;
+    --ink-soft:#3A423C;
+    --paper:#FBF7EE;
+    --canvas:#F1ECE0;
+    --canvas-line:#E3DCC9;
+    --signal:#E8B94B;
+    --signal-dark:#B98F2E;
+    --produce:#4C7A50;
+    --berry:#8C2F4B;
+    --berry-dark:#6F2039;
+    --sky:#3E6E8E;
+    --danger:#A63A2E;
+    --radius:14px;
+    --shadow:0 2px 0 rgba(31,36,32,0.08), 0 10px 24px -14px rgba(31,36,32,0.35);
+    font-size:16px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--canvas);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--signal); color:var(--ink);}
+  :focus-visible{outline:3px solid var(--sky); outline-offset:2px;}
+
+  /* ---------- Aisle sign header ---------- */
+  header.aisle{
+    background:var(--ink);
+    color:var(--paper);
+    padding:12px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    position:sticky; top:0; z-index:30;
+    border-bottom:4px solid var(--signal);
+  }
+  .aisle-brand{display:flex; align-items:center; gap:10px;}
+  .aisle-num{
+    background:var(--signal); color:var(--ink);
+    font-family:'Oswald',sans-serif; font-weight:700; font-size:15px;
+    width:34px; height:34px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .aisle-title{font-family:'Oswald',sans-serif; font-weight:600; letter-spacing:0.04em; font-size:19px; text-transform:uppercase;}
+  .aisle-title small{display:block; font-family:'Inter',sans-serif; font-weight:400; letter-spacing:0.02em; text-transform:none; font-size:11px; color:#C9C2AE; margin-top:1px;}
+
+  .header-right{display:flex; align-items:center; gap:14px;}
+  .progress-ring-wrap{position:relative; width:38px; height:38px; flex-shrink:0;}
+  .progress-ring-wrap svg{transform:rotate(-90deg);}
+  .progress-ring-wrap .pct{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; color:var(--paper);
+  }
+  .icon-btn{
+    background:rgba(255,255,255,0.08); border:none; color:var(--paper); width:34px; height:34px;
+    border-radius:9px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
+  }
+  .icon-btn svg{width:17px; height:17px;}
+  .icon-btn.muted{color:#9B937E;}
+  .lang-toggle{display:flex; background:rgba(255,255,255,0.08); border-radius:999px; padding:3px; gap:2px;}
+  .lang-toggle button{
+    border:none; background:transparent; color:#C9C2AE; font-family:'Inter'; font-weight:600; font-size:12px;
+    padding:7px 10px; border-radius:999px; cursor:pointer; transition:.15s;
+  }
+  .lang-toggle button.active{background:var(--signal); color:var(--ink);}
+
+  main{max-width:1080px; margin:0 auto; padding:24px 18px 90px;}
+
+  /* ---------- Hero / mic ---------- */
+  .hero{text-align:center; padding:26px 12px 8px;}
+  .hero-eyebrow{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.08em; color:var(--ink-soft); text-transform:uppercase;}
+  .mic-wrap{position:relative; width:150px; height:150px; margin:20px auto 10px;}
+  .mic-ring{position:absolute; inset:16px; border-radius:50%; border:2px solid var(--produce); opacity:0;}
+  .mic-wrap.listening .mic-ring{animation:ring 1.6s ease-out infinite;}
+  .mic-wrap.listening .mic-ring:nth-child(2){animation-delay:.5s;}
+  @keyframes ring{0%{opacity:.55; transform:scale(.72);} 100%{opacity:0; transform:scale(1.3);}}
+
+  #waveCanvas{position:absolute; inset:0; width:150px; height:150px; pointer-events:none;}
+
+  button.mic-btn{
+    position:absolute; inset:26px; border-radius:50%; border:none; cursor:pointer;
+    background:var(--berry); color:var(--paper); box-shadow:var(--shadow);
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .12s ease, background .2s ease; z-index:2;
+  }
+  button.mic-btn:hover{transform:translateY(-1px);}
+  button.mic-btn:active{transform:translateY(1px);}
+  button.mic-btn.on{background:var(--produce);}
+  button.mic-btn.busy{background:var(--signal-dark);}
+  button.mic-btn svg{width:32px; height:32px;}
+
+  .mic-status{font-family:'Oswald',sans-serif; font-weight:600; font-size:14px; letter-spacing:.03em; text-transform:uppercase; color:var(--ink-soft); min-height:20px;}
+  .mic-kbd{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#9B937E; margin-top:2px;}
+  .mic-kbd kbd{background:var(--paper); border:1px solid var(--canvas-line); border-radius:4px; padding:1px 5px;}
+
+  .transcript{
+    font-family:'JetBrains Mono',monospace; font-size:14.5px; color:var(--ink);
+    background:var(--paper); border:1px solid var(--canvas-line); border-radius:10px;
+    padding:10px 14px; max-width:520px; margin:12px auto 0; min-height:20px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  .transcript.empty{color:#9B937E; font-style:italic;}
+  .mic-error{color:var(--danger); font-size:13.5px; margin-top:8px; max-width:460px; margin-left:auto; margin-right:auto;}
+
+  .chips{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px;}
+  .chip{
+    background:var(--paper); border:1px solid var(--canvas-line); color:var(--ink-soft);
+    font-size:12.5px; padding:7px 12px; border-radius:999px; cursor:pointer; font-family:'Inter'; transition:.15s;
+  }
+  .chip:hover{border-color:var(--sky); color:var(--sky);}
+
+  .text-fallback{display:flex; gap:8px; max-width:520px; margin:16px auto 0;}
+  .text-fallback input{flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--canvas-line); font-family:'Inter'; font-size:14px; background:var(--paper); color:var(--ink);}
+  .text-fallback button{background:var(--ink); color:var(--paper); border:none; border-radius:10px; padding:10px 16px; font-family:'Inter'; font-weight:600; font-size:13px; cursor:pointer;}
+
+  /* ---------- Two column layout ---------- */
+  .grid{display:grid; grid-template-columns:1.15fr .85fr; gap:22px; margin-top:34px;}
+  @media (max-width:800px){ .grid{grid-template-columns:1fr;} }
+
+  .panel-label{
+    font-family:'Oswald',sans-serif; font-weight:600; font-size:13px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink-soft); margin:0 0 10px 2px; display:flex; align-items:center; gap:8px; justify-content:space-between;
+  }
+  .panel-label .lbl{display:flex; align-items:center; gap:8px;}
+  .panel-label .dot{width:8px; height:8px; border-radius:50%; background:var(--signal);}
+  .undo-btn{
+    border:1px solid var(--canvas-line); background:var(--paper); color:var(--ink-soft); font-size:11px;
+    padding:4px 9px; border-radius:7px; cursor:pointer; font-family:'Inter'; font-weight:600;
+  }
+  .undo-btn:hover{border-color:var(--berry); color:var(--berry);}
+  .undo-btn:disabled{opacity:.4; cursor:not-allowed;}
+
+  /* Receipt card */
+  .receipt{background:var(--paper); border-radius:4px; box-shadow:var(--shadow); position:relative; padding:22px 20px 16px;}
+  .receipt::before{
+    content:""; position:absolute; top:-8px; left:0; right:0; height:16px;
+    background-image:radial-gradient(circle at 8px 8px, var(--canvas) 8px, transparent 8.5px);
+    background-size:16px 16px; background-position:0 0;
+  }
+  .receipt-head{text-align:center; font-family:'JetBrains Mono',monospace; border-bottom:1px dashed var(--canvas-line); padding-bottom:10px; margin-bottom:10px;}
+  .receipt-head .r-title{font-weight:700; letter-spacing:.08em; font-size:13px;}
+  .receipt-head .r-sub{font-size:11px; color:#9B937E; margin-top:3px;}
+  .receipt-empty{text-align:center; color:#9B937E; font-family:'JetBrains Mono',monospace; font-size:13px; padding:26px 10px;}
+
+  ul.items{list-style:none; margin:0; padding:0; font-family:'JetBrains Mono',monospace;}
+  ul.items li{display:flex; align-items:center; gap:8px; padding:9px 0; border-bottom:1px dashed var(--canvas-line); animation:print .28s ease;}
+  ul.items li.picked{opacity:.45;}
+  ul.items li.picked .name{text-decoration:line-through;}
+  @keyframes print{ from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);} }
+
+  .check{
+    width:18px; height:18px; border-radius:50%; border:2px solid var(--produce); flex-shrink:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; background:none;
+  }
+  .check svg{width:11px; height:11px; opacity:0; stroke:var(--produce);}
+  li.picked .check{background:var(--produce);}
+  li.picked .check svg{opacity:1; stroke:var(--paper);}
+
+  ul.items li .cat-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  ul.items li .name{flex:1; font-size:13.5px; min-width:0;}
+  ul.items li .name b{font-weight:700;}
+  ul.items li .name .catlabel{color:#9B937E; font-size:11px;}
+
+  .stepper{display:flex; align-items:center; gap:4px; background:var(--canvas); border-radius:7px; padding:2px;}
+  .stepper button{border:none; background:none; width:18px; height:18px; cursor:pointer; font-size:13px; color:var(--ink-soft); line-height:1; border-radius:4px;}
+  .stepper button:hover{background:var(--paper); color:var(--ink);}
+  .stepper .qtynum{font-size:11.5px; min-width:32px; text-align:center; color:var(--ink-soft);}
+
+  ul.items li .rm{border:none; background:none; cursor:pointer; color:#B7AE96; font-size:16px; line-height:1; padding:2px 4px; flex-shrink:0;}
+  ul.items li .rm:hover{color:var(--danger);}
+
+  .catbar{display:flex; height:7px; border-radius:4px; overflow:hidden; margin-top:12px;}
+  .catbar span{height:100%;}
+
+  .receipt-total{display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink-soft); border-top:1px dashed var(--canvas-line); padding-top:10px; margin-top:10px;}
+
+  /* Budget */
+  .budget-row{display:flex; align-items:center; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--ink-soft); margin-top:10px;}
+  .budget-track{height:9px; background:var(--canvas); border-radius:5px; margin-top:6px; overflow:hidden;}
+  .budget-fill{height:100%; border-radius:5px; background:var(--produce); transition:width .3s ease, background .3s ease;}
+
+  /* Suggestions column */
+  .sugg-card{background:var(--paper); border-radius:var(--radius); padding:14px 16px; margin-bottom:12px; box-shadow:var(--shadow);}
+  .sugg-card h4{margin:0 0 8px; font-family:'Oswald',sans-serif; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; display:flex; align-items:center; gap:7px; color:var(--ink);}
+  .sugg-card h4 .swatch{width:10px; height:10px; border-radius:3px;}
+  .sugg-row{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 0; border-bottom:1px solid var(--canvas-line); font-size:13px;}
+  .sugg-row:last-child{border-bottom:none;}
+  .sugg-row span.note{color:#9B937E; font-size:11.5px; display:block; margin-top:1px;}
+  .sugg-add{border:1px solid var(--produce); color:var(--produce); background:none; border-radius:7px; font-size:11.5px; font-weight:600; padding:4px 9px; cursor:pointer; white-space:nowrap;}
+  .sugg-add:hover{background:var(--produce); color:var(--paper);}
+
+  .recipe-chips{display:flex; flex-wrap:wrap; gap:7px;}
+  .recipe-chip{background:var(--canvas); border:1px solid var(--canvas-line); border-radius:999px; padding:6px 11px; font-size:12px; cursor:pointer; font-family:'Inter'; font-weight:600; color:var(--ink-soft);}
+  .recipe-chip:hover{border-color:var(--berry); color:var(--berry);}
+
+  .activity-list{max-height:150px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;}
+  .activity-item{display:flex; align-items:flex-start; gap:7px; font-size:12px; color:var(--ink-soft);}
+  .activity-item .ok{color:var(--produce); flex-shrink:0;}
+  .activity-item .bad{color:var(--danger); flex-shrink:0;}
+  .activity-item .t{color:#B7AE96; font-family:'JetBrains Mono',monospace; font-size:10.5px; flex-shrink:0;}
+  .activity-empty{color:#9B937E; font-size:12px;}
+
+  /* Search */
+  .search-section{margin-top:30px;}
+  .search-bar{display:flex; gap:8px; max-width:640px;}
+  .search-bar input{flex:1; padding:11px 14px; border-radius:10px; border:1px solid var(--canvas-line); background:var(--paper); font-family:'Inter'; font-size:14px;}
+  .search-bar button{background:var(--sky); color:var(--paper); border:none; border-radius:10px; padding:0 18px; font-weight:600; font-size:13px; cursor:pointer;}
+  .search-hint{font-size:12px; color:var(--ink-soft); margin-top:6px;}
+  .results{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; margin-top:14px;}
+  .result-card{background:var(--paper); border:1px solid var(--canvas-line); border-radius:10px; padding:12px;}
+  .result-card .rc-top{display:flex; justify-content:space-between; align-items:flex-start; gap:6px;}
+  .result-card .rc-name{font-weight:600; font-size:13.5px;}
+  .result-card .rc-brand{font-size:11.5px; color:#9B937E;}
+  .result-card .rc-price{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; color:var(--berry);}
+  .result-card button{margin-top:8px; width:100%; border:none; background:var(--ink); color:var(--paper); border-radius:7px; padding:6px 0; font-size:12px; font-weight:600; cursor:pointer;}
+
+  /* Floating mic */
+  .fab-mic{
+    position:fixed; right:18px; bottom:18px; width:56px; height:56px; border-radius:50%;
+    background:var(--berry); color:var(--paper); border:none; box-shadow:var(--shadow); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; z-index:50;
+    opacity:0; transform:translateY(12px) scale(.9); pointer-events:none; transition:.2s ease;
+  }
+  .fab-mic.show{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
+  .fab-mic.on{background:var(--produce);}
+  .fab-mic svg{width:22px; height:22px;}
+
+  /* Toasts */
+  #toasts{position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:60; display:flex; flex-direction:column; gap:8px; align-items:center;}
+  .toast{background:var(--ink); color:var(--paper); font-size:13px; padding:10px 16px; border-radius:999px; box-shadow:var(--shadow); animation:toastin .18s ease, toastout .25s ease 2.4s forwards; display:flex; align-items:center; gap:8px;}
+  .toast.err{background:var(--danger);}
+  .toast.win{background:var(--produce);}
+  @keyframes toastin{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+  @keyframes toastout{to{opacity:0; transform:translateY(8px);}}
+
+  /* Confetti */
+  .confetti-piece{position:fixed; top:-12px; width:8px; height:14px; z-index:70; pointer-events:none; border-radius:2px;}
+
+  footer{text-align:center; font-size:11.5px; color:#9B937E; padding:30px 10px 10px; font-family:'JetBrains Mono',monospace;}
+
+  @media (prefers-reduced-motion:reduce){
+    .mic-wrap.listening .mic-ring, ul.items li, .toast, .confetti-piece{animation:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="aisle">
+  <div class="aisle-brand">
+    <div class="aisle-num">7</div>
+    <div class="aisle-title">Voice Cart<small>Speak it. It's on the list.</small></div>
+  </div>
+  <div class="header-right">
+    <div class="progress-ring-wrap" title="Items picked up">
+      <svg width="38" height="38" viewBox="0 0 38 38">
+        <circle cx="19" cy="19" r="15" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="4"></circle>
+        <circle id="ringFg" cx="19" cy="19" r="15" fill="none" stroke="var(--signal)" stroke-width="4" stroke-linecap="round" stroke-dasharray="94.2" stroke-dashoffset="94.2"></circle>
+      </svg>
+      <div class="pct" id="ringPct">0%</div>
+    </div>
+    <button class="icon-btn" id="muteBtn" title="Toggle spoken replies" onclick="toggleMute()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="muteIcon">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.5 8.5a5 5 0 0 1 0 7"></path>
+        <path d="M18.5 5.5a9 9 0 0 1 0 13"></path>
+      </svg>
+    </button>
+    <div class="lang-toggle" role="group" aria-label="Voice language">
+      <button id="lang-en" class="active" onclick="setLang('en-IN')">EN</button>
+      <button id="lang-hi" onclick="setLang('hi-IN')">हिं</button>
+      <button id="lang-es" onclick="setLang('es-ES')">ES</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-eyebrow">Tap the mic and talk</div>
+    <div class="mic-wrap" id="micWrap">
+      <div class="mic-ring"></div>
+      <div class="mic-ring"></div>
+      <canvas id="waveCanvas" width="150" height="150"></canvas>
+      <button class="mic-btn" id="micBtn" aria-label="Start voice command">
+        <svg id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="mic-status" id="micStatus">Tap to speak</div>
+    <div class="mic-kbd">or press <kbd>V</kbd></div>
+    <div class="transcript empty" id="transcript">Try: "Add two bottles of milk" or "Add ingredients for pasta night"</div>
+    <div class="mic-error" id="micError" style="display:none;"></div>
+
+    <div class="chips">
+      <div class="chip" onclick="simulate('Add milk')">"Add milk"</div>
+      <div class="chip" onclick="simulate('I need 2 kg of apples')">"I need 2 kg of apples"</div>
+      <div class="chip" onclick="simulate('Add ingredients for pasta night')">"Ingredients for pasta night"</div>
+      <div class="chip" onclick="simulate('Set budget to 50 dollars')">"Set budget to $50"</div>
+      <div class="chip" onclick="simulate('Find toothpaste under 5')">"Find toothpaste under 5"</div>
+      <div class="chip" onclick="simulate('undo')">"Undo"</div>
+      <div class="chip" onclick="simulate('दूध डालो')">"दूध डालो"</div>
+      <div class="chip" onclick="simulate('añade leche')">"añade leche"</div>
+    </div>
+
+    <form class="text-fallback" onsubmit="event.preventDefault(); simulate(document.getElementById('typeCmd').value); document.getElementById('typeCmd').value='';">
+      <input id="typeCmd" type="text" placeholder="No mic? Type a command instead…" />
+      <button type="submit">Send</button>
+    </form>
+  </section>
+
+  <section class="grid">
+    <div>
+      <div class="panel-label"><span class="lbl"><span class="dot"></span>Your list — printed live</span>
+        <button class="undo-btn" id="undoBtn" onclick="undo()" disabled>↺ Undo</button>
+      </div>
+      <div class="receipt">
+        <div class="receipt-head">
+          <div class="r-title">VOICE CART · SHOPPING LIST</div>
+          <div class="r-sub" id="dateLine"></div>
+        </div>
+        <div id="listArea"><div class="receipt-empty">Your list is empty.<br>Say "add milk" to get started.</div></div>
+        <div class="catbar" id="catBar"></div>
+        <div class="receipt-total" id="totalLine" style="display:none;">
+          <span id="itemCount">0 items</span><span id="estTotal">Est. ₹0</span>
+        </div>
+        <div class="budget-row">
+          <span id="budgetLabel">No budget set — say "set budget to 500"</span>
+          <span id="budgetPct"></span>
+        </div>
+        <div class="budget-track"><div class="budget-fill" id="budgetFill" style="width:0%;"></div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-label"><span class="lbl"><span class="dot"></span>Aisle suggestions</span></div>
+
+      <div class="sugg-card">
+        <h4><span class="swatch" style="background:var(--berry)"></span>Quick-add a recipe</h4>
+        <div class="recipe-chips">
+          <div class="recipe-chip" onclick="addRecipe('pasta')">🍝 Pasta night</div>
+          <div class="recipe-chip" onclick="addRecipe('pancake')">🥞 Pancake breakfast</div>
+          <div class="recipe-chip" onclick="addRecipe('taco')">🌮 Taco Tuesday</div>
+        </div>
+      </div>
+
+      <div class="sugg-card">
+        <h4><span class="swatch" style="background:#6F5B95"></span>Running low</h4>
+        <div id="lowStock"></div>
+      </div>
+
+      <div class="sugg-card">
+        <h4><span class="swatch" style="background:var(--produce)"></span>In season this month</h4>
+        <div id="seasonal"></div>
+      </div>
+
+      <div class="sugg-card">
+        <h4><span class="swatch" style="background:var(--sky)"></span>Swap it for</h4>
+        <div id="subs"><div class="sugg-row"><span>Add an item to see substitute ideas<span class="note">e.g. add milk → see almond milk</span></span></div></div>
+      </div>
+
+      <div class="sugg-card">
+        <h4><span class="swatch" style="background:var(--signal-dark)"></span>Voice activity</h4>
+        <div class="activity-list" id="activityList"><div class="activity-empty">Nothing yet — try a command above.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="search-section">
+    <div class="panel-label"><span class="lbl"><span class="dot"></span>Voice-activated search</span></div>
+    <div class="search-bar">
+      <input id="searchInput" type="text" placeholder='Try "find toothpaste under 5" or type a product…' />
+      <button onclick="runSearch(document.getElementById('searchInput').value)">Search</button>
+    </div>
+    <div class="search-hint">Understands brand names and price limits, spoken or typed.</div>
+    <div class="results" id="results"></div>
+  </section>
+
+</main>
+
+<footer>Client-side demo · voice recognition runs in your browser · no data leaves this page</footer>
+<div id="toasts"></div>
+
+<button class="fab-mic" id="fabMic" aria-label="Voice command" onclick="document.getElementById('micBtn').click()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+    <line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line>
+  </svg>
+</button>
+
+<script>
+/* =========================================================
+   DATA
+   ========================================================= */
+const CATALOG = [
+  {name:"Organic Apples", brand:"FarmFresh", price:4.5, category:"produce"},
+  {name:"Apples (Gala)", brand:"OrchardCo", price:3.2, category:"produce"},
+  {name:"Toothpaste Mint", brand:"Colgate", price:2.8, category:"personal care"},
+  {name:"Toothpaste Whitening", brand:"Pepsodent", price:4.9, category:"personal care"},
+  {name:"Almond Milk 1L", brand:"SoGood", price:3.6, category:"dairy"},
+  {name:"Whole Milk 1L", brand:"DairyPure", price:1.9, category:"dairy"},
+  {name:"Brown Bread", brand:"Britannia", price:2.1, category:"bakery"},
+  {name:"Basmati Rice 5kg", brand:"India Gate", price:8.4, category:"pantry"},
+  {name:"Potato Chips", brand:"Lays", price:1.5, category:"snacks"},
+  {name:"Green Tea", brand:"Tetley", price:3.0, category:"beverages"},
+];
+
+const CATEGORY_COLORS = {
+  dairy:"#3E6E8E", produce:"#4C7A50", bakery:"#B98F2E", snacks:"#8C2F4B",
+  beverages:"#6C6F3E", pantry:"#8A5A2E", "personal care":"#6B5B95",
+  household:"#5B7065", other:"#9B937E"
+};
+
+const CATEGORY_MAP = {
+  milk:"dairy", cheese:"dairy", yogurt:"dairy", butter:"dairy", curd:"dairy", parmesan:"dairy", cream:"dairy",
+  apple:"produce", apples:"produce", banana:"produce", bananas:"produce", tomato:"produce", tomatoes:"produce",
+  onion:"produce", onions:"produce", potato:"produce", spinach:"produce", guava:"produce", corn:"produce",
+  mango:"produce", basil:"produce", lettuce:"produce", lime:"produce", garlic:"produce",
+  bread:"bakery", bun:"bakery", buns:"bakery", croissant:"bakery", "taco shells":"bakery",
+  chips:"snacks", cookies:"snacks", biscuits:"snacks", chocolate:"snacks",
+  rice:"pantry", sugar:"pantry", flour:"pantry", salt:"pantry", oil:"pantry", lentils:"pantry", dal:"pantry",
+  pasta:"pantry", "pancake mix":"pantry", syrup:"pantry", "tomato sauce":"pantry", salsa:"pantry",
+  water:"beverages", juice:"beverages", tea:"beverages", coffee:"beverages",
+  toothpaste:"personal care", soap:"personal care", shampoo:"personal care",
+  detergent:"household", tissue:"household",
+  eggs:"pantry", "ground beef":"other",
+  दूध:"dairy", ब्रेड:"bakery", चावल:"pantry", चीनी:"pantry", अंडे:"pantry", सेब:"produce",
+  leche:"dairy", pan:"bakery", arroz:"pantry", azúcar:"pantry", huevos:"pantry", manzanas:"produce"
+};
+
+const SUBSTITUTES = {
+  milk:["almond milk","oat milk","soy milk"],
+  sugar:["jaggery","honey","stevia"],
+  bread:["multigrain bread","gluten-free bread"],
+  rice:["quinoa","brown rice"],
+  butter:["olive oil","ghee"]
+};
+
+const SEASONAL = ["Corn", "Guava", "Bottle gourd", "Watermelon", "Okra"];
+
+const RECIPES = {
+  pasta:{label:"Pasta night", items:["Pasta","Tomato sauce","Garlic","Parmesan","Basil"]},
+  pancake:{label:"Pancake breakfast", items:["Pancake mix","Eggs","Butter","Syrup"]},
+  taco:{label:"Taco Tuesday", items:["Taco shells","Ground beef","Salsa","Lettuce","Cheese"]}
+};
+
+const HISTORY = [
+  {name:"Milk", daysSince:6, everyDays:5},
+  {name:"Bread", daysSince:8, everyDays:6},
+  {name:"Eggs", daysSince:9, everyDays:7},
+  {name:"Coffee", daysSince:3, everyDays:12},
+];
+
+const PRICE_PER_UNIT = 45; // demo estimate in ₹ per item unit
+
+/* =========================================================
+   STATE
+   ========================================================= */
+let list = [];
+let lang = 'en-IN';
+let recognizing = false;
+let recognition = null;
+let muted = false;
+let budget = null;
+let activity = []; // {time, text, ok}
+let actionStack = []; // for undo: {type:'add'|'remove'|'check'|'budget', ...}
+let audioCtx=null, analyser=null, micStream=null, rafId=null;
+
+const VOICE_STRINGS = {
+  'en-IN':{listen:'Listening…', think:'Understanding…', tap:'Tap to speak', notCaught:"Didn't catch that — try again or type it.", denied:'Microphone permission denied — use the text box below instead.', unsupported:"Your browser doesn't support the Web Speech API. Use Chrome, or type commands below — every feature still works.", placeholder:'Try: "Add two bottles of milk" or "Add ingredients for pasta night"'},
+  'hi-IN':{listen:'सुन रहा हूँ…', think:'समझ रहा हूँ…', tap:'बोलने के लिए टैप करें', notCaught:'कुछ समझ नहीं आया, फिर कोशिश करें।', denied:'माइक्रोफ़ोन की अनुमति नहीं मिली। नीचे टाइप करें।', unsupported:'आपका ब्राउज़र वॉइस सपोर्ट नहीं करता। नीचे टाइप करें।', placeholder:'बोलें: "दूध डालो" या "ब्रेड हटाओ"'},
+  'es-ES':{listen:'Escuchando…', think:'Entendiendo…', tap:'Toca para hablar', notCaught:'No entendí eso — intenta de nuevo o escríbelo.', denied:'Permiso de micrófono denegado — usa el cuadro de texto.', unsupported:'Tu navegador no soporta la API de voz. Usa Chrome, o escribe abajo.', placeholder:'Prueba: "añade leche" o "quita el pan"'}
+};
+
+/* =========================================================
+   INIT
+   ========================================================= */
+document.getElementById('dateLine').textContent = new Date().toDateString();
+renderLowStock();
+renderSeasonal();
+renderList();
+renderActivity();
+
+function setLang(code){
+  lang = code;
+  document.getElementById('lang-en').classList.toggle('active', code==='en-IN');
+  document.getElementById('lang-hi').classList.toggle('active', code==='hi-IN');
+  document.getElementById('lang-es').classList.toggle('active', code==='es-ES');
+  const s = VOICE_STRINGS[code];
+  document.getElementById('transcript').textContent = s.placeholder;
+  document.getElementById('transcript').classList.add('empty');
+  document.getElementById('micStatus').textContent = s.tap;
+  if(recognition) recognition.lang = lang;
+}
+
+function toggleMute(){
+  muted = !muted;
+  document.getElementById('muteBtn').classList.toggle('muted', muted);
+  if(muted) window.speechSynthesis && window.speechSynthesis.cancel();
+}
+
+function speak(text){
+  if(muted || !('speechSynthesis' in window) || !text) return;
+  try{
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = 1.03;
+    const voices = window.speechSynthesis.getVoices();
+    const match = voices.find(v => v.lang === lang) || voices.find(v => v.lang && v.lang.startsWith(lang.split('-')[0]));
+    if(match) u.voice = match;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* =========================================================
+   SPEECH RECOGNITION + LIVE WAVEFORM
+   ========================================================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const micBtn = document.getElementById('micBtn');
+const micWrap = document.getElementById('micWrap');
+const micStatus = document.getElementById('micStatus');
+const micError = document.getElementById('micError');
+const fabMic = document.getElementById('fabMic');
+const waveCanvas = document.getElementById('waveCanvas');
+const waveCtx = waveCanvas.getContext('2d');
+
+if(SR){
+  recognition = new SR();
+  recognition.lang = lang;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    recognizing = true;
+    micWrap.classList.add('listening');
+    micBtn.classList.add('on');
+    fabMic.classList.add('on');
+    micStatus.textContent = VOICE_STRINGS[lang].listen;
+    micError.style.display = 'none';
+    startWaveform();
+  };
+  recognition.onresult = (e) => {
+    let text = '';
+    for(let i=0;i<e.results.length;i++) text += e.results[i][0].transcript;
+    setTranscript(text);
+    if(e.results[0].isFinal) handleCommandWithLoading(text);
+  };
+  recognition.onerror = (e) => {
+    showMicError(e.error === 'not-allowed' ? VOICE_STRINGS[lang].denied : VOICE_STRINGS[lang].notCaught);
+  };
+  recognition.onend = () => {
+    recognizing = false;
+    micWrap.classList.remove('listening');
+    micBtn.classList.remove('on','busy');
+    fabMic.classList.remove('on');
+    stopWaveform();
+    if(micStatus.textContent === VOICE_STRINGS[lang].listen) micStatus.textContent = VOICE_STRINGS[lang].tap;
+  };
+} else {
+  micStatus.textContent = 'Voice not supported here';
+  showMicError(VOICE_STRINGS['en-IN'].unsupported);
+}
+
+micBtn.addEventListener('click', () => {
+  if(!SR) return;
+  if(recognizing){ recognition.stop(); return; }
+  try{ recognition.start(); } catch(err){ /* already started */ }
+});
+
+document.addEventListener('keydown', (e) => {
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if(e.key === 'v' || e.key === 'V'){ e.preventDefault(); micBtn.click(); }
+});
+
+window.addEventListener('scroll', () => {
+  fabMic.classList.toggle('show', window.scrollY > 340);
+});
+
+function showMicError(msg){ micError.style.display = 'block'; micError.textContent = msg; }
+function setTranscript(text){
+  const t = document.getElementById('transcript');
+  t.textContent = text || '…';
+  t.classList.remove('empty');
+}
+function simulate(text){ setTranscript(text); handleCommandWithLoading(text); }
+
+function handleCommandWithLoading(text){
+  micBtn.classList.add('busy');
+  micStatus.textContent = VOICE_STRINGS[lang].think;
+  setTimeout(() => {
+    handleCommand(text);
+    micBtn.classList.remove('busy');
+    micStatus.textContent = VOICE_STRINGS[lang].tap;
+  }, 380);
+}
+
+/* live audio-reactive waveform bars, drawn from the real mic input */
+async function startWaveform(){
+  try{
+    if(!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const source = audioCtx.createMediaStreamSource(micStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    drawWave();
+  }catch(e){ /* fall back silently to the pulse rings */ }
+}
+function stopWaveform(){
+  if(rafId) cancelAnimationFrame(rafId);
+  rafId = null;
+  if(micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  waveCtx.clearRect(0,0,150,150);
+}
+function drawWave(){
+  if(!analyser) return;
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  waveCtx.clearRect(0,0,150,150);
+  const bars = 24, cx=75, cy=75, radius=58;
+  for(let i=0;i<bars;i++){
+    const v = data[i % data.length] / 255;
+    const len = 6 + v * 20;
+    const angle = (i/bars) * Math.PI * 2;
+    const x1 = cx + Math.cos(angle) * radius;
+    const y1 = cy + Math.sin(angle) * radius;
+    const x2 = cx + Math.cos(angle) * (radius + len);
+    const y2 = cy + Math.sin(angle) * (radius + len);
+    waveCtx.strokeStyle = 'rgba(140,47,75,'+(0.35+v*0.5)+')';
+    waveCtx.lineWidth = 3;
+    waveCtx.lineCap = 'round';
+    waveCtx.beginPath(); waveCtx.moveTo(x1,y1); waveCtx.lineTo(x2,y2); waveCtx.stroke();
+  }
+  rafId = requestAnimationFrame(drawWave);
+}
+
+/* =========================================================
+   NLP — intent + slot parsing
+   ========================================================= */
+const NUM_WORDS = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,
+  एक:1,दो:2,तीन:3,चार:4,पांच:5, uno:1,dos:2,tres:3,cuatro:4,cinco:5};
+
+function parseCommand(raw){
+  const text = raw.trim();
+  const low = text.toLowerCase();
+
+  if(/^undo$|पिछला पूर्ववत|deshacer/i.test(low)) return {intent:'undo'};
+
+  const budgetMatch = low.match(/budget\s*(to|of)?\s*[\$₹]?\s*(\d+(\.\d+)?)|बजट\s*(\d+)|presupuesto\s*(a|de)?\s*(\d+(\.\d+)?)/);
+  if(budgetMatch || /budget|बजट|presupuesto/.test(low)){
+    const num = low.match(/(\d+(\.\d+)?)/);
+    if(num) return {intent:'budget', amount:parseFloat(num[1])};
+  }
+
+  const recipeMatch = Object.keys(RECIPES).find(k => low.includes(k) || low.includes(RECIPES[k].label.toLowerCase()));
+  if(recipeMatch && /ingredient|recipe|night|breakfast|tuesday|के लिए|para/.test(low+ ' ' +low)) {
+    return {intent:'recipe', recipe:recipeMatch};
+  }
+
+  let intent = 'add';
+  if(/^(remove|delete|take off|don'?t need)/i.test(low) || /हटाओ|हटा दो/.test(text) || /^(quita|elimina|quitar)/i.test(low)) intent = 'remove';
+  else if(/^(find|search|show me|look for)/i.test(low) || /ढूंढो|खोजो/.test(text) || /^(busca|buscar|encuentra)/i.test(low)) intent = 'search';
+  else if(/^(add|i need|i want|buy|get me|put|include)/i.test(low) || /डालो|जोड़ो|चाहिए/.test(text) || /^(añade|agrega|añadir|compra)/i.test(low)) intent = 'add';
+
+  let priceMax = null;
+  const priceMatch = low.match(/under\s*[\$₹]?\s*(\d+(\.\d+)?)|menos de\s*[\$₹]?\s*(\d+(\.\d+)?)/);
+  if(priceMatch) priceMax = parseFloat(priceMatch[1] || priceMatch[3]);
+
+  let qty = 1, unit = '';
+  const qtyMatch = low.match(/\b(\d+)\s*(kg|kgs|liters?|litres?|bottles?|packs?|pcs?|dozen)?\b/);
+  if(qtyMatch){ qty = parseInt(qtyMatch[1],10); unit = (qtyMatch[2]||'').replace(/s$/,''); }
+  else{ for(const w in NUM_WORDS){ if(new RegExp('\\b'+w+'\\b','i').test(text)){ qty = NUM_WORDS[w]; break; } } }
+
+  let item = text
+    .replace(/^(add|i need|i want to buy|i want|buy|get me|put|include|remove|delete|take off|find|search for|search|show me|look for|añade|agrega|añadir|compra|quita|elimina|quitar|busca|buscar|encuentra)\b/i,'')
+    .replace(/\bto my list\b|\bfrom my list\b|\bmy list\b/gi,'')
+    .replace(/\bof\b/gi,'')
+    .replace(/under\s*[\$₹]?\s*\d+(\.\d+)?/gi,'')
+    .replace(/\b\d+\b/g,'')
+    .replace(/\b(kg|kgs|liters?|litres?|bottles?|packs?|pcs?|dozen)\b/gi,'')
+    .replace(/डालो|जोड़ो|चाहिए|हटाओ|हटा दो|ढूंढो|खोजो/g,'')
+    .trim().replace(/\s{2,}/g,' ');
+  for(const w in NUM_WORDS) item = item.replace(new RegExp('\\b'+w+'\\b','ig'),'').trim();
+  if(!item) item = text;
+
+  return {intent, item, qty, unit, priceMax};
+}
+
+function categorize(name){
+  const key = name.toLowerCase().split(' ').find(w => CATEGORY_MAP[w]) || name.toLowerCase();
+  return CATEGORY_MAP[key] || CATEGORY_MAP[name.trim()] || 'other';
+}
+
+/* =========================================================
+   COMMAND HANDLER
+   ========================================================= */
+function handleCommand(raw){
+  if(!raw || !raw.trim()){ logActivity(raw, false); toast(VOICE_STRINGS[lang].notCaught, true); return; }
+  const cmd = parseCommand(raw);
+
+  if(cmd.intent === 'undo'){ undo(); logActivity(raw, true); return; }
+  if(cmd.intent === 'budget'){ setBudget(cmd.amount); logActivity(raw, true); return; }
+  if(cmd.intent === 'recipe'){ addRecipe(cmd.recipe); logActivity(raw, true); return; }
+
+  if(cmd.intent === 'search'){
+    runSearch(raw, cmd.priceMax);
+    document.getElementById('searchInput').value = cmd.item;
+    document.querySelector('.search-section').scrollIntoView({behavior:'smooth', block:'start'});
+    logActivity(raw, true);
+    return;
+  }
+  if(cmd.intent === 'remove'){ removeByName(cmd.item); logActivity(raw, true); return; }
+  addItem(cmd.item, cmd.qty, cmd.unit);
+  logActivity(raw, true);
+}
+
+function addItem(name, qty=1, unit='', silent=false){
+  name = name.trim();
+  if(!name){ toast("Didn't catch an item name — try again.", true); return; }
+  const category = categorize(name);
+  const existing = list.find(i => i.name.toLowerCase() === name.toLowerCase());
+  if(existing){ existing.qty += qty; }
+  else list.push({id:Date.now()+Math.random(), name, qty, unit, category, picked:false});
+  renderList();
+  showSubstitutes(name);
+  if(!silent){
+    actionStack.push({type:'add', name});
+    updateUndoBtn();
+    toast(`Added ${qty>1?qty+' ':''}${unit?unit+' ':''}${name}`);
+    speak(`Added ${name} to your list`);
+  }
+}
+
+function removeByName(name){
+  name = name.trim().toLowerCase();
+  const removed = list.filter(i => i.name.toLowerCase().includes(name));
+  if(removed.length === 0){ toast(`"${name}" wasn't on your list`, true); speak(`I couldn't find ${name} on your list`); return; }
+  list = list.filter(i => !i.name.toLowerCase().includes(name));
+  renderList();
+  actionStack.push({type:'remove', items:removed});
+  updateUndoBtn();
+  toast(`Removed ${name}`);
+  speak(`Removed ${name}`);
+}
+
+function removeById(id){
+  const item = list.find(i => i.id === id);
+  if(!item) return;
+  list = list.filter(i => i.id !== id);
+  renderList();
+  actionStack.push({type:'remove', items:[item]});
+  updateUndoBtn();
+}
+
+function changeQty(id, delta){
+  const item = list.find(i => i.id === id);
+  if(!item) return;
+  item.qty = Math.max(1, item.qty + delta);
+  renderList();
+}
+
+function toggleCheck(id){
+  const item = list.find(i => i.id === id);
+  if(!item) return;
+  item.picked = !item.picked;
+  renderList();
+  if(list.length > 0 && list.every(i => i.picked)){
+    launchConfetti();
+    toast('Cart complete! 🎉', false, 'win');
+    speak('Nice work — your whole list is checked off.');
+  }
+}
+
+function undo(){
+  const action = actionStack.pop();
+  if(!action){ toast('Nothing to undo', true); return; }
+  if(action.type === 'add'){
+    const idx = list.map(i=>i.name.toLowerCase()).lastIndexOf(action.name.toLowerCase());
+    if(idx > -1) list.splice(idx,1);
+  } else if(action.type === 'remove'){
+    list = list.concat(action.items);
+  } else if(action.type === 'budget'){
+    budget = action.prev;
+  }
+  renderList();
+  updateUndoBtn();
+  toast('Undone');
+}
+function updateUndoBtn(){ document.getElementById('undoBtn').disabled = actionStack.length === 0; }
+
+function addRecipe(key){
+  const r = RECIPES[key];
+  if(!r) return;
+  r.items.forEach(name => addItem(name, 1, '', true));
+  toast(`Added ${r.items.length} ingredients for ${r.label}`);
+  speak(`Added everything for ${r.label}`);
+}
+
+function setBudget(amount){
+  const prev = budget;
+  budget = amount;
+  actionStack.push({type:'budget', prev});
+  updateUndoBtn();
+  renderList();
+  toast(`Budget set to ₹${amount}`);
+  speak(`Budget set to ${amount}`);
+}
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+function renderList(){
+  const area = document.getElementById('listArea');
+  const totalLine = document.getElementById('totalLine');
+  const catBar = document.getElementById('catBar');
+
+  if(list.length === 0){
+    area.innerHTML = '<div class="receipt-empty">Your list is empty.<br>Say "add milk" to get started.</div>';
+    totalLine.style.display = 'none';
+    catBar.innerHTML = '';
+  } else {
+    const ul = document.createElement('ul');
+    ul.className = 'items';
+    list.forEach(i => {
+      const li = document.createElement('li');
+      li.className = i.picked ? 'picked' : '';
+      li.innerHTML = `
+        <button class="check" onclick="toggleCheck(${JSON.stringify(i.id)})" aria-label="Mark picked up">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </button>
+        <span class="cat-dot" style="background:${CATEGORY_COLORS[i.category]||CATEGORY_COLORS.other}"></span>
+        <span class="name"><b>${escapeHtml(capitalize(i.name))}</b> <span class="catlabel">· ${i.category}</span></span>
+        <span class="stepper">
+          <button onclick="changeQty(${JSON.stringify(i.id)},-1)">−</button>
+          <span class="qtynum">${i.qty}${i.unit ? ' '+i.unit : ''}</span>
+          <button onclick="changeQty(${JSON.stringify(i.id)},1)">+</button>
+        </span>
+        <button class="rm" title="Remove" onclick="removeById(${JSON.stringify(i.id)})">×</button>
+      `;
+      ul.appendChild(li);
+    });
+    area.innerHTML = '';
+    area.appendChild(ul);
+    totalLine.style.display = 'flex';
+    document.getElementById('itemCount').textContent = `${list.length} item${list.length>1?'s':''}`;
+
+    const counts = {};
+    list.forEach(i => counts[i.category] = (counts[i.category]||0) + i.qty);
+    const total = Object.values(counts).reduce((a,b)=>a+b,0);
+    catBar.innerHTML = Object.keys(counts).map(cat =>
+      `<span style="width:${(counts[cat]/total*100).toFixed(1)}%; background:${CATEGORY_COLORS[cat]||CATEGORY_COLORS.other}" title="${cat}"></span>`
+    ).join('');
+  }
+
+  const est = list.reduce((s,i)=>s+i.qty*PRICE_PER_UNIT,0);
+  document.getElementById('estTotal').textContent = `Est. ₹${est.toLocaleString('en-IN')}`;
+
+  // progress ring
+  const pickedCount = list.filter(i=>i.picked).length;
+  const pct = list.length ? Math.round(pickedCount/list.length*100) : 0;
+  const circumference = 94.2;
+  document.getElementById('ringFg').style.strokeDashoffset = circumference - (pct/100)*circumference;
+  document.getElementById('ringPct').textContent = pct+'%';
+
+  // budget
+  const label = document.getElementById('budgetLabel');
+  const fill = document.getElementById('budgetFill');
+  const pctLbl = document.getElementById('budgetPct');
+  if(budget){
+    const ratio = Math.min(1, est/budget);
+    fill.style.width = (ratio*100)+'%';
+    fill.style.background = ratio < 0.7 ? 'var(--produce)' : ratio < 0.95 ? 'var(--signal-dark)' : 'var(--danger)';
+    label.textContent = `Budget ₹${budget.toLocaleString('en-IN')}`;
+    pctLbl.textContent = `${Math.round(ratio*100)}% used`;
+  } else {
+    fill.style.width = '0%';
+    label.textContent = 'No budget set — say "set budget to 500"';
+    pctLbl.textContent = '';
+  }
+}
+
+function renderLowStock(){
+  const el = document.getElementById('lowStock');
+  const due = HISTORY.filter(h => h.daysSince >= h.everyDays);
+  if(due.length === 0){ el.innerHTML = '<div class="sugg-row"><span>Nothing due for a restock yet.</span></div>'; return; }
+  el.innerHTML = due.map(h => `
+    <div class="sugg-row">
+      <span>${h.name}<span class="note">last bought ${h.daysSince} days ago</span></span>
+      <button class="sugg-add" onclick="addItem('${h.name}',1,'')">+ Add</button>
+    </div>`).join('');
+}
+function renderSeasonal(){
+  const el = document.getElementById('seasonal');
+  el.innerHTML = SEASONAL.map(name => `
+    <div class="sugg-row"><span>${name}</span><button class="sugg-add" onclick="addItem('${name}',1,'')">+ Add</button></div>`).join('');
+}
+function showSubstitutes(name){
+  const key = Object.keys(SUBSTITUTES).find(k => name.toLowerCase().includes(k));
+  if(!key) return;
+  document.getElementById('subs').innerHTML = SUBSTITUTES[key].map(s => `
+    <div class="sugg-row"><span>${capitalize(s)}<span class="note">instead of ${key}</span></span>
+    <button class="sugg-add" onclick="addItem('${s}',1,'')">+ Swap</button></div>`).join('');
+}
+function logActivity(text, ok){
+  activity.unshift({text: text || '(empty)', ok, time: new Date()});
+  activity = activity.slice(0,8);
+  renderActivity();
+}
+function renderActivity(){
+  const el = document.getElementById('activityList');
+  if(activity.length === 0){ el.innerHTML = '<div class="activity-empty">Nothing yet — try a command above.</div>'; return; }
+  el.innerHTML = activity.map(a => `
+    <div class="activity-item">
+      <span class="${a.ok ? 'ok' : 'bad'}">${a.ok ? '✓' : '✕'}</span>
+      <span>${escapeHtml(a.text)}</span>
+      <span class="t">${a.time.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+    </div>`).join('');
+}
+
+/* =========================================================
+   SEARCH
+   ========================================================= */
+function runSearch(raw, priceMaxOverride){
+  if(raw === undefined) return;
+  const parsed = parseCommand(raw);
+  const priceMax = priceMaxOverride !== undefined && priceMaxOverride !== null ? priceMaxOverride : parsed.priceMax;
+  const q = (parsed.intent === 'search' ? parsed.item : raw).toLowerCase().trim();
+
+  const matches = CATALOG.filter(p => {
+    const hay = (p.name + ' ' + p.brand).toLowerCase();
+    const nameOk = q ? hay.includes(q) : true;
+    const priceOk = priceMax ? p.price <= priceMax : true;
+    return nameOk && priceOk;
+  });
+
+  const el = document.getElementById('results');
+  if(matches.length === 0){ el.innerHTML = '<div class="search-hint">No matches. Try a different item or a higher price limit.</div>'; return; }
+  el.innerHTML = matches.map(p => `
+    <div class="result-card">
+      <div class="rc-top">
+        <div><div class="rc-name">${p.name}</div><div class="rc-brand">${p.brand} · ${p.category}</div></div>
+        <div class="rc-price">$${p.price.toFixed(2)}</div>
+      </div>
+      <button onclick="addItem('${p.name.replace(/'/g,"\\'")}',1,'')">Add to list</button>
+    </div>`).join('');
+}
+document.getElementById('searchInput').addEventListener('keydown', e => { if(e.key === 'Enter') runSearch(e.target.value); });
+
+/* =========================================================
+   CONFETTI
+   ========================================================= */
+function launchConfetti(){
+  const colors = ['#8C2F4B','#4C7A50','#E8B94B','#3E6E8E'];
+  for(let i=0;i<40;i++){
+    const p = document.createElement('div');
+    p.className = 'confetti-piece';
+    p.style.left = Math.random()*100+'vw';
+    p.style.background = colors[Math.floor(Math.random()*colors.length)];
+    p.style.transform = `rotate(${Math.random()*360}deg)`;
+    p.style.transition = `transform ${2+Math.random()}s ease-in, top ${2+Math.random()}s ease-in, opacity ${2+Math.random()}s ease-in`;
+    document.body.appendChild(p);
+    requestAnimationFrame(() => {
+      p.style.top = '105vh';
+      p.style.opacity = '0.2';
+      p.style.transform = `rotate(${360+Math.random()*360}deg)`;
+    });
+    setTimeout(() => p.remove(), 3200);
+  }
+}
+
+/* =========================================================
+   UTIL
+   ========================================================= */
+function toast(msg, isErr, cls){
+  const wrap = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast' + (isErr ? ' err' : cls==='win' ? ' win' : '');
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 2700);
+}
+function capitalize(s){ return s.replace(/\b\w/g, c => c.toUpperCase()); }
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>
